@@ -18,6 +18,13 @@ def subscribe_intent_callback(hermes, intent_message):
         action_wrapper.say("Désolée, il y a eu une erreur.")
 
 
+def french_number(number):
+    number = float(number)
+    if int(number) == number:
+        number = int(number)
+    return str(number).replace(".", ",")
+
+
 class SensorError(Exception):
     pass
 
@@ -51,13 +58,13 @@ class ActionWrapper:
         temp = round(self.get_temperature_humidity('temperature'), 1)
         print("Celsius:", temp, "°C")
 
-        self.say("Il fait actuellement", temp, "degrés")
+        self.say("Il fait actuellement", french_number(temp), "degrés")
 
     def askHumidity(self):
         humidity = round(self.get_temperature_humidity('humidity'), 1)
         print("Humidity:", humidity, "%")
 
-        self.say("L'humidité est de", humidity, "%")
+        self.say("L'humidité est de", french_number(humidity), "%")
 
     def action(self):
         if self.intent_message.site_id != self.site_id:
@@ -69,7 +76,7 @@ class ActionWrapper:
 
     def say(self, message, *args):
         current_session_id = self.intent_message.session_id
-        message = message + " ".join(args)
+        message = message + " " + " ".join(args)
         self.hermes.publish_end_session(current_session_id, message)
 
 
