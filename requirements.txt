@@ -1,2 +1,3 @@
 hermes-python>=0.1
 smbus2
+-e git+https://github.com/bors-ltd/snips-common.git#egg=snips-common

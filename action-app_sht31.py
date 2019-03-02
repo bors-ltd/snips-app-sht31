@@ -1,40 +1,30 @@
 #!/usr/bin/env python3
-import traceback
+import time
 
 from hermes_python.hermes import Hermes
 from hermes_python.ontology import MqttOptions
-import time
 import smbus2
 
-
-def subscribe_intent_callback(hermes, intent_message):
-    action_wrapper = ActionWrapper(hermes, intent_message)
-    try:
-        action_wrapper.action()
-    except SensorError:
-        action_wrapper.say("Désolée, je n'ai pas de réponse des capteurs.")
-    except Exception:
-        traceback.print_exc()
-        action_wrapper.say("Désolée, il y a eu une erreur.")
-
-
-def french_number(number):
-    number = float(number)
-    if int(number) == number:
-        number = int(number)
-    return str(number).replace(".", ",")
+import snips_common
 
 
 class SensorError(Exception):
     pass
 
 
-class ActionWrapper:
+class BaseSht31Action(snips_common.ActionWrapper):
+    site_id = 'default'  # TODO
+    reactions = {SensorError: "Désolée, je n'ai pas de réponse des capteurs."}
+
     def __init__(self, hermes, intent_message):
-        self.hermes = hermes
-        self.intent_message = intent_message
-        self.site_id = 'default'  # TODO
+        super().__init__(hermes, intent_message)
         self.bus = smbus2.SMBus(1)
+
+    @classmethod
+    def callback(cls, hermes, intent_message):
+        if intent_message.site_id != cls.site_id:
+            return
+        return super().callback(hermes, intent_message)
 
     def get_temperature_humidity(self, ret='temperature'):
         try:
@@ -54,35 +44,31 @@ class ActionWrapper:
         if ret == 'humidity':
             return humidity
 
-    def askTemperature(self):
+
+class ActionTemperature(BaseSht31Action):
+    def action(self):
         temp = round(self.get_temperature_humidity('temperature'), 1)
         print("Celsius:", temp, "°C")
 
-        self.say("Il fait actuellement", french_number(temp), "degrés")
+        self.end_session(
+            "Il fait actuellement", snips_common.french_number(temp, 1), "degrés"
+        )
 
-    def askHumidity(self):
+
+class ActionHumidity(BaseSht31Action):
+    def action(self):
         humidity = round(self.get_temperature_humidity('humidity'), 1)
         print("Humidity:", humidity, "%")
 
-        self.say("L'humidité est de", french_number(humidity), "%")
-
-    def action(self):
-        if self.intent_message.site_id != self.site_id:
-            return
-        if self.intent_message.intent.intent_name == 'checkTemperature':
-            self.askTemperature()
-        if self.intent_message.intent.intent_name == 'checkHumidity':
-            self.askHumidity()
-
-    def say(self, message, *args):
-        current_session_id = self.intent_message.session_id
-        message = message + " " + " ".join(args)
-        self.hermes.publish_end_session(current_session_id, message)
+        self.end_session(
+            "L'humidité est de", snips_common.french_number(humidity, 1), "%"
+        )
 
 
 if __name__ == "__main__":
     mqtt_opts = MqttOptions()
-    with Hermes(mqtt_options=mqtt_opts) as h:
-        h.subscribe_intent('checkTemperature', subscribe_intent_callback)
-        h.subscribe_intent('checkHumidity', subscribe_intent_callback)
-        h.start()
+
+    with Hermes(mqtt_options=mqtt_opts) as hermes:
+        hermes.subscribe_intent('checkTemperature', ActionTemperature.callback)
+        hermes.subscribe_intent('checkHumidity', ActionHumidity.callback)
+        hermes.start()
