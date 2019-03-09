@@ -13,18 +13,11 @@ class SensorError(Exception):
 
 
 class BaseSht31Action(snips_common.ActionWrapper):
-    site_id = 'default'  # TODO
     reactions = {SensorError: "Désolée, je n'ai pas de réponse des capteurs."}
 
-    def __init__(self, hermes, intent_message):
-        super().__init__(hermes, intent_message)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.bus = smbus2.SMBus(1)
-
-    @classmethod
-    def callback(cls, hermes, intent_message):
-        if intent_message.site_id != cls.site_id:
-            return
-        return super().callback(hermes, intent_message)
 
     def get_temperature_humidity(self, ret='temperature'):
         try:
@@ -47,16 +40,24 @@ class BaseSht31Action(snips_common.ActionWrapper):
 
 class ActionTemperature(BaseSht31Action):
     def action(self):
+        if not self.message_for_this_site():
+            return
+
         temp = round(self.get_temperature_humidity('temperature'), 1)
         print("Celsius:", temp, "°C")
 
         self.end_session(
-            "Il fait actuellement", snips_common.french_number(temp, 1), "degrés"
+            "Il fait actuellement",
+            snips_common.french_number(temp, 1),
+            "degrés"
         )
 
 
 class ActionHumidity(BaseSht31Action):
     def action(self):
+        if not self.message_for_this_site():
+            return
+
         humidity = round(self.get_temperature_humidity('humidity'), 1)
         print("Humidity:", humidity, "%")
 
